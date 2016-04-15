@@ -1,0 +1,130 @@
+Ansible Architecture:
+
+    Ansible works on openssh/paramiko python
+    Ansible needs Python to run.
+    /etc/ansible: hosts ansible.cfg 
+
+    !/bin/sh== --- in yaml (structure)
+    Once it connects to a host, gathers facts on the metadata of the hosts viz. host fingerprints etc.
+
+    Playbooks and tasks: Tasks are specifically sequential Vs. Hosts: Each task is run on each host sequentially.
+    One module can ONLY be used in one task in Ansible. However, if a shell module or any other module with multiple commands is being used, Shell commands can be used sequentially. 
+    Functionality: sequential rather than parallel
+
+
+Ansible use cases Apple:
+
+    18 VM's:
+
+    1. Common Directory Creations (Local/AS/Configuration****)
+    2. Install Java 7 & 8, and make 8 as the default system wide 
+    3. Sentinel install and up & running
+    4. Handle config files in from Stash
+    5. Image file transfers between Aspen and CDS
+
+    Use Case-1:
+       ---
+        -hosts: pubsys3
+         vars: <To be used in this playbook> (same as shell variables)
+         remote_user: root
+        -tasks:
+ 
+            -name: Making directories
+             shell: mkdir /Local/AS/Configuration
+
+            -name: Copy the shell file
+             copy: src=files/abc.sh dest=/Local/AS/Configuration
+
+            -name: Run shell script
+             command: sh abc.sh
+
+            or, directly run the script rather than copying 
+            -name: run the file directly on all machines without copying the file (just creates a image of script in /tmp)
+            -script: files/abc.sh
+
+
+    Use Case-2:
+
+       ---
+        tasks:
+            - name: Running puppet on all machines to get the sentinel up and running.
+              command: /vm-config/run-puppet.sh
+              
+            - name: coping the abc.sh files to /tmp/
+              copy: src=files/abc.sh dest=/tmp/ force=yes to overwrite the existing file
+              
+            - name: condition that directory has to be present before
+            - shell: sh /tmp/abc.sh creates=/Local/AS/Configuration/
+            
+            - script: files/abc.sh 
+            - file: path=/Local/AS/Configuration/ state=directory
+
+# Manage Java version and default version
+            - copy: src=files/java-{{ java_version }}.tar dest=/opt/local/java/
+
+            - command: java --version
+              register: java_version.stdout
+
+            - unarchive: src=files/java-{{ java_version }}.tar dest=/opt/local/java/
+              when: java_version.stdout !exists {{ java_version }}
+
+            - link: src=opt/local/java/java-{{ java_version }}/bin/java path=/opt/local/bin/ creates=/opt/local/bin/java
+
+            - copy: src=files/bash_profile dest=/home/user/.bash_profile force=yes
+
+            - include: java_18.yml
+
+            -name: Install packages using packet managers
+            - yum: package=tomcat state=install
+            - yum: package=ant state=install
+            - yum: package=java state=install
+            - yum: package={{ items }} state=install
+              with_items: 
+                - java
+                - tomcat
+                - ant
+  
+  # clones into target hosts
+  - git: repo=ssh://git@github.com/mylogin/hello.git dest=/home/mylogin/hello
+  
+  # clones in ansible server machine. local action defines it.
+  - local_action: git clone {{ url }} 
+
+
+  -copy: src=files/{{ groupName }}/blah dest=/new/blah/
+   when: hostname in groupName
+   register: env_name
+  
+  Use Case-3 (example file):
+  
+  ---
+    - hosts: {{ target }}
+      http_port: 80
+      java_version: 1.8
+      remote_user: root
+     tasks:
+   - include: java_18.yml
+   - include: java_17.yml
+     register: success_
+   - inlude: tomcat7.yml 
+
+     ansible-playbook cspod1.yml -i hosts --extra-vars "target=machine/group/all java_version=1.8"
+ 
+ 
+ 
+ Expected Ansible usage AWS:
+
+instance_id = $ (aws ec2 run-instances --image-id <ami> --instance-type <type> --count <#> --output text --query 'Instances[*].InstanceID')	
+| echo "instance with instance ID $instance_id has been launched" || errexit "could not run instance"
+
+for instances in $instance_id; do <>;
+
+or query the IPs of the hosts and place them in the hosts file and then, invoke ansible playbooks for host configurations and perform tasks.
+
+
+Little bit on Puppet example on automated deployments:
+
+
+
+
+
